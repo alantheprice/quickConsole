@@ -19,6 +19,12 @@ var quickConsole = (function() {
     var consoleExecutor = executeEval;
     var registered = false;
     
+    var config = {
+        overrideNativeCalls: true,
+        // possible location options: left, right, top, bottom, full
+        location: "left"
+    };
+    
     console.log = msg => writeLog("log", msg);
     console.error = msg => writeLog("error", msg);
     console.warn = msg => writeLog("warn", msg);
@@ -38,11 +44,13 @@ var quickConsole = (function() {
         executeFunction: executeFunction,
         updateText: updateText,
         registerToggleHandler: registerToggleHandler,
-        toggleConsole: toggleConsole
+        toggleConsole: toggleConsole,
+        init: init
     };
     
-    function init(config) {
-    	// here we should initialize config.
+    function init(options) {
+        config.location = options.location || config.location;
+        config.overrideNativeCalls = options.overrideNativeCalls || config.overrideNativeCalls;
     }
     
     function writeLog (logName, msg) {
@@ -50,10 +58,10 @@ var quickConsole = (function() {
         addToLogList(forScreen);
         logToScreen();
         
-        if (!innerConsole[logName]) {
+        if (!innerConsole[logName] || config.overrideNativeCalls) {
             return;
         }
-        //innerConsole[logName](msg);
+        innerConsole[logName](msg);
     }
     
     function clear() {
@@ -71,13 +79,13 @@ var quickConsole = (function() {
     
     /** Setup for the on screen quick console. */
     function addToScreen() {
-        var styles = getPosition("0", "0", "50%", "100%")
-            + "background:rgba(250,250,250,.87);z-index:10000;overflow:auto;";
+        var styles = getConsolePosition() + "background:rgba(250,250,250,.87);" +
+            "z-index:10000;overflow:auto;";
         consoleContainer = document.createElement("div");
         consoleContainer.setAttribute("style", styles);
         document.body.appendChild(consoleContainer);
         consoleDiv = document.createElement("div");
-        consoleDiv.style = getPosition("0", "50px", "100%", "100%");
+        consoleDiv.style = getPosition("0", "50px", "100%", "90vh");
         consoleContainer.appendChild(consoleDiv);
         consoleDiv.innerText = logList.join(String.fromCharCode(13));
         addInput();
@@ -132,6 +140,22 @@ var quickConsole = (function() {
         } else if (consoleIndex < consoleList.length - 1) {
             consoleIndex += 1;
         }
+    }
+    
+    function getConsolePosition() {
+        switch (config.location) {
+            case "left":
+                return getPosition(0, 0, "50%", "100%");
+            case "right":
+                return getPosition("50%", 0, "50%", "100%");
+            case "top":
+                return getPosition(0, 0, "100%", "50%");
+            case "bottom":
+                return getPosition(0, "50%", "100%", "50%");
+            default:
+                return getPosition(0, 0, "100%", "100%");
+        }
+        
     }
     
     function getPosition(left, top, width, height, position) {
@@ -227,6 +251,9 @@ var quickConsole = (function() {
         if (!registered) {
             registerKeyHandler(window);
             registered = true;
+        }
+        if (!obj) {
+            return;
         }
         registerKeyHandler(obj);
     }
