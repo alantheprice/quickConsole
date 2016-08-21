@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+
+    <title>Html Test</title>
+    
+</head>
+
+<body>
+    <div id="keypresser" style="position:absolute; top:0; left: 0; width: 100vw; height: 100vh; z-index:30;"></div>
+    <script src="quickConsole.js" type="text/javascript" charset="utf-8"></script>
+    <script>
+        var keyPresser = document.getElementById("keypresser");
+        quickConsole.registerToggleHandler(keyPresser);
+    </script>
+
+</body>

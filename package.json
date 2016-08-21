@@ -1,0 +1,19 @@
+{
+  "name": "quick-console",
+  "version": "0.1.0",
+  "description": "Quick console that gives some of the functionality of a native dev-tools console.",
+  "main": "quickConsole.js",
+  "keywords": [
+    "console",
+    "devtools",
+    "development"
+  ],
+  "author": "alan@theprices.us",
+  "license": "ISC",
+  "devDependencies": {
+  },
+  "files": [
+      "dist"
+  ]
+}
+ 
