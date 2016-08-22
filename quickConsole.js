@@ -9,20 +9,21 @@ var quickConsole = (function() {
         onError: window.onerror
     };
     
-    var logList = [];
-    var consoleList = [];
-    var consoleIndex = 0;
-    var consoleDiv;
-    var consoleContainer;
-    var input;
+    var logList = [], consoleList = [], consoleIndex = 0;
+    
+    // elements.
+    var consoleDiv, consoleContainer, input;
+    
     var maxMessageCount = 50;
+    var maxConsoleHistory = 20;
     var consoleExecutor = executeEval;
     var registered = false;
     
+    var locations = {LEFT: "left", RIGHT: "right", TOP: "top", BOTTOM: "bottom", FULL: "full"};
+
     var config = {
         overrideNativeCalls: true,
-        // possible location options: left, right, top, bottom, full
-        location: "left"
+        location: locations.LEFT
     };
     
     console.log = msg => writeLog("log", msg);
@@ -37,6 +38,8 @@ var quickConsole = (function() {
             }
         };
     
+    loadSavedConsoleHistory();
+
     return {
         innerConsole: innerConsole,
         logList: logList,
@@ -45,8 +48,18 @@ var quickConsole = (function() {
         updateText: updateText,
         registerToggleHandler: registerToggleHandler,
         toggleConsole: toggleConsole,
-        init: init
+        init: init,
+        setLocation: setLocation,
+        locations: locations
     };
+    
+    function loadSavedConsoleHistory() {
+        var found = localStorage.getItem("consoleHistory");
+        if (found) {
+            consoleList = JSON.parse(found);
+            consoleIndex = consoleList.length - 1;
+        }
+    }
     
     function init(options) {
         config.location = options.location || config.location;
@@ -54,7 +67,7 @@ var quickConsole = (function() {
     }
     
     function writeLog (logName, msg) {
-        var forScreen = logName.toUpperCase() + ": " + JSON.stringify(msg);
+        var forScreen = logName.toUpperCase() + ": " + formatMessage(msg);
         addToLogList(forScreen);
         logToScreen();
         
@@ -62,6 +75,44 @@ var quickConsole = (function() {
             return;
         }
         innerConsole[logName](msg);
+    }
+    
+    function formatMessage(msg) {
+        if (typeof msg === "string") {
+            return msg;
+        } else if (isElement(msg)) {
+            return formatElement(msg);
+        } else {
+            return JSON.stringify(msg);
+        }
+    }
+    
+    function formatElement(msg) {
+        var prefix = "Element: Html" + String.fromCharCode(13);
+        var offset = 1;
+        return prefix + msg.outerHTML
+             .replace(/(?:\r\n|\r|\n)/g, "#")
+             .replace(/>/g, ">#")
+             .replace(/##/g, "#")
+             .split("#")
+             .map(val => {
+                 val = val.trim();
+                 if (val[1] && val[1] === "/" && offset > 2) {
+                     offset = offset - 2;
+                     return getSpacer(offset) + val;
+                 } else if (val[0] && val[0] === "<" && val[1] !== "i") {
+                     var tempOffset = offset;
+                     offset = offset + 2;
+                     return getSpacer(tempOffset) + val;
+                 } else {
+                     return getSpacer(offset) + val;
+                 }
+             })
+             .join(String.fromCharCode(13));
+    }
+    
+    function getSpacer(num) {
+        return Array(num).join("__");
     }
     
     function clear() {
@@ -73,14 +124,13 @@ var quickConsole = (function() {
         if (logList.length >= maxMessageCount) {
             logList.shift();
         }
-        logList.push(msg);
+        logList.unshift(msg);
 
     }
     
     /** Setup for the on screen quick console. */
     function addToScreen() {
-        var styles = getConsolePosition() + "background:rgba(250,250,250,.87);" +
-            "z-index:10000;overflow:auto;";
+        var styles = getContainerStyles();
         consoleContainer = document.createElement("div");
         consoleContainer.setAttribute("style", styles);
         document.body.appendChild(consoleContainer);
@@ -91,14 +141,20 @@ var quickConsole = (function() {
         addInput();
     }
     
+    function getContainerStyles() {
+        return getConsolePosition() +
+            toStyle("background", "rgba(250,250,250,.87)") +
+            toStyle("z-index", 2000) +
+            toStyle("overflow", "auto") + 
+            toStyle("color", "#404040");
+    }
+    
     function addInput() {
         input = document.createElement("input");
         var styles = getPosition(0, 0, "97%", "20px", "relative") +
             "border:1px solid rgba(90,90,90,.7);" +
             "padding:5px;margin:1%;z-index: 2; outline: none;";
         input.setAttribute("id", "consoleInput");
-        input.setAttribute("autocomplete", "off");
-        input.setAttribute("title", "console input");
         input.setAttribute("type", "text");
         input.setAttribute("style", styles);
         input.onkeydown = (e) => updateText(e);
@@ -111,7 +167,7 @@ var quickConsole = (function() {
         } 
         
         if (event.keyCode === 13) {
-            consoleList.push(input.value);
+            addToConsoleHistory(input.value);
             try {
               consoleExecutor(input.value);
             } catch(error) {
@@ -124,6 +180,14 @@ var quickConsole = (function() {
         } else if (event.keyCode === 40) { // up arrow pressed
             useConsoleHistory(false);
         }
+    }
+    
+    function addToConsoleHistory(value) {
+        if (consoleList.length >= maxConsoleHistory) {
+            consoleList.shift();
+        }
+        consoleList.push(input.value);
+        localStorage.setItem("consoleHistory", JSON.stringify(consoleList));
     }
     
     function useConsoleHistory(up) {
@@ -142,20 +206,26 @@ var quickConsole = (function() {
         }
     }
     
+    function setLocation(location) {
+        config.location = location;
+        if (consoleContainer) {
+            consoleContainer.setAttribute("style", getContainerStyles());
+        }
+    }
+    
     function getConsolePosition() {
         switch (config.location) {
-            case "left":
+            case locations.LEFT:
                 return getPosition(0, 0, "50%", "100%");
-            case "right":
+            case locations.RIGHT:
                 return getPosition("50%", 0, "50%", "100%");
-            case "top":
+            case locations.TOP:
                 return getPosition(0, 0, "100%", "50%");
-            case "bottom":
+            case locations.BOTTOM:
                 return getPosition(0, "50%", "100%", "50%");
             default:
                 return getPosition(0, 0, "100%", "100%");
         }
-        
     }
     
     function getPosition(left, top, width, height, position) {
@@ -184,6 +254,8 @@ var quickConsole = (function() {
         }
     }
     
+    /** execution */
+    
     function executeEval(evalString) {
         var response;
         try{
@@ -196,10 +268,7 @@ var quickConsole = (function() {
               executeSafe(evalString);
             }
         }
-        if (!response) {
-            return;
-        }
-        writeLog("log", response);
+        handleExecuteResponse(response);
     }
     
     function executeSafe(inputValue) {
@@ -227,10 +296,7 @@ var quickConsole = (function() {
             func = func[name];
         });
         var response = func.apply(context, params);
-        if (!response) {
-            return;
-        }
-        writeLog("log", response);
+        handleExecuteResponse(response);
     }
     
     function logObject(objName) {
@@ -244,7 +310,18 @@ var quickConsole = (function() {
             tmpName += ("." + name);
             context = context[name];
         });
-        writeLog("log", context);
+        handleExecuteResponse(context);
+    }
+    
+    function handleExecuteResponse(response) {
+        if (!response) {
+            return;
+        }
+        writeLog("log", response);
+    }
+    
+    function isElement(obj) {
+        return typeof obj.outerHTML !== undefined;
     }
     
     function registerToggleHandler(obj) {
