@@ -54,7 +54,7 @@ var quickConsole = (function() {
     };
     
     function loadSavedConsoleHistory() {
-        var found = localStorage.getItem("consoleHistory");
+        var found = retrieve("consoleHistory");
         if (found) {
             consoleList = JSON.parse(found);
             consoleIndex = consoleList.length - 1;
@@ -116,7 +116,7 @@ var quickConsole = (function() {
     }
     
     function clear() {
-        localStorage.setItem("consoleMsg", JSON.stringify(logList));
+        store("consoleMsg", JSON.stringify(logList));
         innerConsole.clear();
     }
     
@@ -187,7 +187,7 @@ var quickConsole = (function() {
             consoleList.shift();
         }
         consoleList.push(input.value);
-        localStorage.setItem("consoleHistory", JSON.stringify(consoleList));
+        store("consoleHistory", JSON.stringify(consoleList));
     }
     
     function useConsoleHistory(up) {
@@ -317,11 +317,18 @@ var quickConsole = (function() {
         if (!response) {
             return;
         }
+        // check to see if it is a promise
+        if (response.then) {
+            response.then(returnVal => {
+                writeLog("log", returnVal);
+            });
+            return;
+        }
         writeLog("log", response);
     }
     
     function isElement(obj) {
-        return typeof obj.outerHTML !== undefined;
+        return typeof obj.outerHTML !== "undefined";
     }
     
     function registerToggleHandler(obj) {
@@ -366,6 +373,30 @@ var quickConsole = (function() {
         } else {
             addToScreen();
         }
+    }
+    
+    function store(key, value) {
+        if (!useLocalStorage()) {
+             return;  
+        }
+        localStorage.setItem(key, value);
+    }
+    
+    function retrieve(key) {
+        if (!useLocalStorage()) {
+             return null;
+        }
+        return localStorage.getItem(key);
+    }
+    
+    function useLocalStorage() {
+        var hasLocalStorage = false;
+        try {
+            hasLocalStorage = typeof window.localStorage !== "undefined";
+        } catch(error) {
+            // no need to catch anything, just use local storage if available.
+        }
+        return useLocalStorage;
     }
     
 })();
