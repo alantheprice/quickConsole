@@ -7,14 +7,8 @@ Any messages that are typed into the console input will attempt to use `eval` to
 
 # Usage: 
 1. Add to your page like so: `<script src="quickConsole.js" type="text/javascript" charset="utf-8"></script>`
-2. You can toggle it in two ways: 
-  1. Within your javascript call: `quickConsole.toggleConsole();`
-  2. Register the key command on an element: 
-    ```
-    var elem = document.getElementById("yourId");
-    quickConsole.registerToggleHandler(elem);
-    ```
-    * Now when that element is in focus and you press "Ctrl + Alt + Shift + d", you will toggle the quickConsole.
-  3. Once the quick-console is open, it can be removed anytime by pressing "Ctrl + Alt + Shift + d" when focused on the input box.
+2. Within your javascript call: `quickConsole.init(config)`; 
+3. you can toggle the console by pressing "Ctrl + Alt + Shift + d".
+4. Once the quick-console is open, it can be removed anytime by pressing "Ctrl + Alt + Shift + d" when focused on the input box.
 
 

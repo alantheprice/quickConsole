@@ -169,7 +169,7 @@ var quickConsole = (function() {
         if (event.keyCode === 13) {
             addToConsoleHistory(input.value);
             try {
-              consoleExecutor(input.value);
+              this.execute.eval(input.value);
             } catch(error) {
               // error already logged elsewhere just catching it here so we can continue execution.
             }

@@ -1,6 +1,6 @@
 {
   "name": "quick-console",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Quick console that gives some of the functionality of a native dev-tools console.",
   "main": "quickConsole.js",
   "keywords": [
@@ -11,9 +11,12 @@
   "author": "alan@theprices.us",
   "license": "ISC",
   "devDependencies": {
+    "grunt": "^1.0.1",
+    "grunt-contrib-concat": "^1.0.1",
+    "grunt-contrib-copy": "^1.0.0",
+    "grunt-contrib-uglify": "^2.0.0"
   },
   "files": [
-      "dist"
+    "dist"
   ]
 }
- 
