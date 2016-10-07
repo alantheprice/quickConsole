@@ -4,7 +4,6 @@ var QC;
     var Log = (function() {
         
         function Log(format, storage) {
-            //this.view = view;
             this.format = format;
             this.storage = storage;
             this.logList = [];
@@ -34,6 +33,9 @@ var QC;
             if (QC.innerConsole.clear) {
                 QC.innerConsole.clear();
             }
+            this.logList = [];
+            var view = QC.DI.load("view");
+            view.logToScreen(this.logList);
         };
         
         Log.prototype.addToLogList = function(value) {

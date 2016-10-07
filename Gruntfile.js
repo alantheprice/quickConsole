@@ -19,14 +19,20 @@ module.exports = function(grunt) {
             }
         },
         concat: {
+            build: {
+                src: ["src/**/*.js"],
+                dest: 'quickConsole.js'
+            }
+        },
+        copy: {
             dist: {
-              src: ["src/**/*.js"],
-              dest: 'dist/quickConsole.js'
+                src: ["quickConsole.js"],
+                dest: "dist/quickConsole.js"
             }
         }
     });
 
     // Default task(s).
-    grunt.registerTask('default', ["concat"]);
+    grunt.registerTask('default', ["concat", "copy"]);//, "uglify"]);
 
 };

@@ -22,6 +22,7 @@ var QC;
             var offset = 1;
             return prefix + msg.outerHTML.replace(/(?:\r\n|\r|\n)/g, "#")
                 .replace(/>/g, ">#")
+                .replace(/</g, "<#")
                 .replace(/##/g, "#")
                 .split("#")
                 .map(val => {

@@ -8,6 +8,7 @@ var QC;
             this.log = log;
             this.view = view;
             QC.init = this.init;
+            this.captureNativeConsole();
             this.registered = false;
             this.toggleConsoleTimeout;
         }

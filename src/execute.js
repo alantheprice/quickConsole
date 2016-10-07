@@ -4,12 +4,21 @@ var QC;
     var Execute = (function() {
         
         function Execute(log) {
+            this.clearFunctionsOptions = ["clear();", "clear()", "Clear();", "Clear()"];
             this.log = log;
             this.executor = this.executeEval;
         }
         
         Execute.prototype.eval = function(evalString) {
+            if (this.requestingClear(evalString)) {
+                this.log.clear();
+                return;
+            }
             this.executor(evalString);
+        };
+
+        Execute.prototype.requestingClear = function(evalString) {
+            return this.clearFunctionsOptions.indexOf(evalString) > -1;
         };
     
         Execute.prototype.executeEval = function(evalString) {
@@ -32,10 +41,43 @@ var QC;
             var parts = inputValue.split("(");
             var funcName = parts[0];
             var params = (parts && parts.length) ? parts[1].split(")")[0].split(",") : [];
+            params = params.map((val) => this.parseParam(val))
+                .filter((val) => {return !!val;});
             this.executeFunction(funcName, params);
           } else {
             this.logObject(inputValue);
           }
+        };
+
+        Execute.prototype.parseParam = function(val) {
+            if (!val || !val.length) {
+                return null;
+            }
+            if (this.isNumber(val)) {
+                
+                return (val.indexOf(".") > -1) ? parseFloat(val) : parseInt(val);
+            }
+            else {
+                return this.sanitizeString(val);
+            }
+        };
+
+        Execute.prototype.isNumber = function (str) {
+            return !isNaN(parseFloat(str)) && isFinite(str);
+        };
+
+        Execute.prototype.sanitizeString = function (str) {
+            if (!str.length) {
+                return str;
+            }
+            str = str.trim();
+            if (str[0] === "\"" || str[0] === "'") {
+                return this.sanitizeString(str.substr(1));
+            }
+            if (str[str.length -1] === "\"" || str[str.length -1] === "'") {
+                return this.sanitizeString(str.slice(0, -1));
+            }
+            return str;
         };
         
         Execute.prototype.executeFunction = function(funcName, params) {

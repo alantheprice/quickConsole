@@ -115,6 +115,7 @@ var QC;
                 this.consoleContainer = undefined;
             } else {
                 this.addToScreen();
+                this.input.focus();
             }
         };
         
