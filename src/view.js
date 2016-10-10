@@ -3,8 +3,9 @@ var QC;
     
     var View = (function() {
 
-        function View(execute, history) {
+        function View(execute, history, suggest) {
             QC.setLocation = this.setLocation;
+            this.suggest = suggest;
             this.execute = execute;
             this.history = history;
         }
@@ -14,8 +15,10 @@ var QC;
             this.consoleContainer = document.createElement("div");
             this.consoleContainer.setAttribute("style", styles);
             document.body.appendChild(this.consoleContainer);
-            this.consoleDiv = document.createElement("div");
-            this.consoleDiv.style = this.getPosition("0", "50px", "100%", "90vh");
+            this.consoleDiv = document.createElement("textarea");
+            this.consoleDiv.setAttribute("readonly", "");
+            this.consoleDiv.style = this.toStyle("background", "rgba(250,250,250,.87)") +
+                    this.getPosition("5px", "50px", "calc(100% - 20px)", "calc(100% - 60px)");
             this.consoleContainer.appendChild(this.consoleDiv);
             this.addInput();
         };
@@ -30,7 +33,7 @@ var QC;
         
         View.prototype.addInput= function() {
             this.input = document.createElement("input");
-            var styles = this.getPosition(0, 0, "97%", "20px", "relative") +
+            var styles = this.getPosition(0, 0, "calc(100% - 35px)", "20px", "relative") +
                 "border:1px solid rgba(90,90,90,.7);" +
                 "padding:5px;margin:1%;z-index: 2; outline: none;";
             this.input.setAttribute("id", "consoleInput");
@@ -44,21 +47,65 @@ var QC;
             // loading when needed to make sure we don't have recursive dependencies.
             if (QC.DI.load("setup").checkForConsoleToggle(keyEvent)) {
                 return;
-            } 
-            
-            if (keyEvent.keyCode === 13) {
-                this.history.saveLast(this.input.value);
-                try {
-                  this.execute.eval(this.input.value);
-                } catch(error) {
-                  // error already logged elsewhere just catching it here so we can continue execution.
-                }
-                this.input.value = "";
-            } else if (keyEvent.keyCode === 38) { // up arrow pressed
-                this.input.value = this.history.loadLast();
-            } else if (keyEvent.keyCode === 40) { // up arrow pressed
-                this.input.value = this.history.loadNext();
             }
+            
+            if (this.isReturnKey(keyEvent)) { // Return key pressed
+                this.handleReturnKey();
+                return;
+            } else if (this.isDownArrow(keyEvent)) { // up arrow pressed
+                  this.input.value = this.history.loadLast();
+            } else if (this.isUpArrow(keyEvent)) { // up arrow pressed
+                this.input.value = this.history.loadNext();
+            } else if (this.tabCompletion(keyEvent)) { // tab pressed
+                this.handleTabCompletion(keyEvent);
+            } else if (this.shouldRollbackSuggestion(keyEvent)) {
+                this.input.value = this.lastValue;
+            } else {
+                return;
+            }
+            this.moveCursorToEnd();
+        };
+        
+        View.prototype.isReturnKey = function(keyEvent) {
+            return keyEvent.keyCode === 13;
+        };
+        
+        View.prototype.isUpArrow = function(keyEvent) {
+            return keyEvent.keyCode === 38;
+        };
+        
+        View.prototype.isDownArrow = function(keyEvent) {
+            return keyEvent.keyCode === 40;
+        };
+        
+        View.prototype.requestSuggestions = function(keyEvent) {
+            return keyEvent.keyCode === 32 && keyEvent.ctrlKey;  
+        };
+        
+        View.prototype.tabCompletion = function(keyEvent) {
+            return keyEvent.keyCode === 9;
+        };
+        
+        View.prototype.shouldRollbackSuggestion = function(keyEvent) {
+            return this.lastValue && keyEvent.keyCode === 90 && keyEvent.ctrlKey;  
+        };
+        
+        View.prototype.handleReturnKey = function() {
+            this.history.saveLast(this.input.value);
+            try {
+              this.execute.eval(this.input.value);
+            } catch(error) {
+              // error already logged elsewhere just catching it here so we can continue execution.
+            }
+            this.input.value = "";
+        };
+        
+        View.prototype.handleTabCompletion = function(keyEvent) {
+          this.lastValue = this.input.value;
+          var value = this.suggest.getBestFit(this.input.value);
+          this.input.value = value;
+          keyEvent.preventDefault();
+          this.input.focus();
         };
     
         View.prototype.setLocation = function(location) {
@@ -67,6 +114,14 @@ var QC;
                 this.consoleContainer.setAttribute("style", this.getContainerStyles());
             }
         };
+        
+        View.prototype.moveCursorToEnd = function() {
+            var _this = this;
+            _this.input.focus();
+            setTimeout(() => {
+                _this.input.value = _this.input.value;
+            }, 20);
+        }
         
         View.prototype.getConsolePosition = function() {
             switch (QC.config.location) {
@@ -105,8 +160,17 @@ var QC;
         
         View.prototype.logToScreen = function(logList) {
             if (this.consoleDiv) {
-                this.consoleDiv.innerText = logList.join(String.fromCharCode(13));
+                this.consoleDiv.innerText = logList.join(this.getSeperator());
             }
+        };
+        
+        View.prototype.getSeperator = function() {
+            if (!this.logSeperator) {
+                this.logSeperator = String.fromCharCode(13) +
+                    Array(50).join("=") +
+                    String.fromCharCode(13);
+            }
+            return this.logSeperator;
         };
         
         View.prototype.toggleConsole = function() {
@@ -119,9 +183,16 @@ var QC;
             }
         };
         
+        View.prototype.getViewAsString = function() {
+            if (!this.consoleContainer) {
+                return "";
+            }
+            return this.consoleContainer.outerHTML;  
+        };
+        
         return View;
     })();
     
-    QC.DI.register("view", View, ["execute", "history"]);
+    QC.DI.register("view", View, ["execute", "history", "suggest"]);
 
 })(QC || (QC = {}));

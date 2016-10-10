@@ -1,5 +1,6 @@
 var QC;
 (function(QC) {
+    "use strict";
     
     var Execute = (function() {
         

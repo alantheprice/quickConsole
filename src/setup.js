@@ -10,6 +10,7 @@ var QC;
             QC.init = this.init;
             this.captureNativeConsole();
             this.registered = false;
+            this.overrideNativeConsole();
             this.toggleConsoleTimeout;
         }
         

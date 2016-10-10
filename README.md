@@ -8,7 +8,8 @@ Any messages that are typed into the console input will attempt to use `eval` to
 # Usage: 
 1. Add to your page like so: `<script src="quickConsole.js" type="text/javascript" charset="utf-8"></script>`
 2. Within your javascript call: `quickConsole.init(config)`; 
-3. you can toggle the console by pressing "Ctrl + Alt + Shift + d".
+3. you can toggle the console by pressing "Ctrl + Alt + Shift + D".
 4. Once the quick-console is open, it can be removed anytime by pressing "Ctrl + Alt + Shift + d" when focused on the input box.
 
-
+# Features:
+1. Tab to complete

@@ -41,7 +41,6 @@ var QC;
             }
             //  FROM: http://stackoverflow.com/a/28244500  cr
             return new (obj.func.bind.apply(obj.func, [null].concat(dependencies)))();
-            //return obj.func.apply(obj.func, dependencies);
 
         };
         

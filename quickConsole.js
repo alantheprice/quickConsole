@@ -75,7 +75,6 @@ var QC;
             }
             //  FROM: http://stackoverflow.com/a/28244500  cr
             return new (obj.func.bind.apply(obj.func, [null].concat(dependencies)))();
-            //return obj.func.apply(obj.func, dependencies);
 
         };
         
@@ -112,6 +111,7 @@ var QC;
 
 var QC;
 (function(QC) {
+    "use strict";
     
     var Execute = (function() {
         
@@ -252,25 +252,29 @@ var QC;
     var Format = (function() {
 
         function Format() {
-            this.spacer = "_";
+            this.spacer = String.fromCharCode(32);
         }
 
-        Format.prototype.message = function(msg) {
+        Format.prototype.message = function(msg, viewHtml) {
             if (typeof msg === "string") {
                 return msg;
             } else if (this.isElement(msg)) {
-                return this.formatElement(msg);
+                return this.formatElement(msg, viewHtml);
             } else {
                 return this.formatJSON(msg);
             }
         };
 
-        Format.prototype.formatElement = function(msg) {
-            var prefix = "Element: Html" + String.fromCharCode(13);
-            var offset = 1;
-            return prefix + msg.outerHTML.replace(/(?:\r\n|\r|\n)/g, "#")
+        Format.prototype.formatElement = function(msg, removeChars) {
+            var prefix = "Element: Html" + String.fromCharCode(13) + Array(25).join("-");
+            var offset = 0;
+            var html = msg.outerHTML;
+            if (removeChars) {
+                html = html.replace(removeChars, "<quick-console>...</quick-console>");
+            }
+            return prefix + html.replace(/(?:\r\n|\r|\n)/g, "#")
                 .replace(/>/g, ">#")
-                .replace(/</g, "<#")
+                .replace(/</g, "#<")
                 .replace(/##/g, "#")
                 .split("#")
                 .map(val => {
@@ -298,7 +302,6 @@ var QC;
         };
         
         Format.prototype.formatJSON = function(msg) {
-            var returnObj = "";
             try {
                 return JSON.stringify(msg, null, 4);
             } catch(error) {
@@ -337,6 +340,12 @@ var QC;
         History.prototype.saveLast = function(value) {
             // don't save empty values.
             if (!value || value === "") { return; }
+            
+            //  Was last command, no need to save again.
+            if (this.consoleList[this.consoleList.length - 1] === value) {
+                return;
+            }
+            
             
             if (this.consoleList.length >= QC.config.maxConsoleHistory) {
                 this.consoleList.shift();
@@ -388,19 +397,30 @@ var QC;
         }
         
         Log.prototype.write = function(logName, msg) {
-            var message = logName.toUpperCase() + ": " + this.format.message(msg);
+            var message = logName.toUpperCase() + ": " + this.format.message(msg, this.getView().getViewAsString());
             this.addToLogList(message);
             // loading view when needed so we don't have a recursive dependency
-            var view = QC.DI.load("view");
-            view.logToScreen(this.logList);
+           this.getView().logToScreen(this.logList);
             if (!QC.innerConsole[logName] || QC.config.overrideNativeCalls) {
                 return;
             }
             QC.innerConsole[logName](msg);
         };
         
+        Log.prototype.getView = function() {
+            if (!this.view) {
+                this.view = QC.DI.load("view");
+            }
+            return this.view;
+        };
+        
         Log.prototype.error = function(errorMsg, url, lineNumber, column) {
-            this.write("error", ["errorMsg: ", errorMsg, "url: ", url, "lineNumber: ", lineNumber, "column: ", column].join("\n"));
+            this.write("error", [
+                    "errorMsg: ", errorMsg,
+                    "url: ", url, 
+                    "lineNumber: ", lineNumber, 
+                    "column: ", column
+                ].join("\n"));
             if (QC.innerConsole.onError) {
                 QC.innerConsole.onError(errorMsg, url, lineNumber, column);
             }
@@ -441,6 +461,7 @@ var QC;
             QC.init = this.init;
             this.captureNativeConsole();
             this.registered = false;
+            this.overrideNativeConsole();
             this.toggleConsoleTimeout;
         }
         
@@ -552,11 +573,79 @@ var QC;
 })(QC || (QC = {}));
 var QC;
 (function(QC) {
+    "use strict";
+    var Suggest = (function() {
+        function Suggest() {
+        }
+        
+        Suggest.prototype.getBestFit = function(partialCommand) {
+            if (!partialCommand || partialCommand === "") {
+                return "";
+            }
+            var commands = partialCommand.split(" ");
+            var commandToComplete = commands.pop();
+            var suggestion = this.getSuggestions(commandToComplete);
+            if (commands && commands.length) {
+                return commands.join(" ") + " " + suggestion;
+            } else {
+                return suggestion;
+            }
+        };
+        
+        Suggest.prototype.getSuggestions = function(partialCommand) {
+            var context = window;
+            var tmpName = "";
+            var final = partialCommand;
+            partialCommand.split(".")
+            .forEach((name, index, arr) => {
+                if (arr.length === index + 1) {
+                    final = this.getSuggestionsForName(context, name);
+                    final = (tmpName !== "") ? (tmpName + "." + final) : final;
+                    return final;
+                }
+                
+                if (!context[name]) {
+                   console.error(name + " does not exist on object: " + tmpName);
+                   return;
+                }
+                tmpName += (tmpName !== "") ? ("." + name) : name;
+                context = context[name];
+            });
+            return final;
+        };
+        
+        Suggest.prototype.getSuggestionsForName = function(context, name) {
+            var options = this.getContextualSuggestions(context);
+            var filtered = options.filter(function(option) {
+                return option.toUpperCase().indexOf(name.toUpperCase()) === 0;
+            });
+            return filtered[0] || name;
+        };
+        
+        Suggest.prototype.getContextualSuggestions = function(context) {
+            var suggestions = [];
+            for(var i in context) {
+                suggestions.push(i);
+            }
+            console.log(suggestions);
+            return suggestions;
+        };
+        
+        return Suggest;
+    })();
+    
+    QC.DI.register("suggest", Suggest, []);
+    
+    
+})(QC || (QC = {}));
+var QC;
+(function(QC) {
     
     var View = (function() {
 
-        function View(execute, history) {
+        function View(execute, history, suggest) {
             QC.setLocation = this.setLocation;
+            this.suggest = suggest;
             this.execute = execute;
             this.history = history;
         }
@@ -566,8 +655,10 @@ var QC;
             this.consoleContainer = document.createElement("div");
             this.consoleContainer.setAttribute("style", styles);
             document.body.appendChild(this.consoleContainer);
-            this.consoleDiv = document.createElement("div");
-            this.consoleDiv.style = this.getPosition("0", "50px", "100%", "90vh");
+            this.consoleDiv = document.createElement("textarea");
+            this.consoleDiv.setAttribute("readonly", "");
+            this.consoleDiv.style = this.toStyle("background", "rgba(250,250,250,.87)") +
+                    this.getPosition("5px", "50px", "calc(100% - 20px)", "calc(100% - 60px)");
             this.consoleContainer.appendChild(this.consoleDiv);
             this.addInput();
         };
@@ -582,7 +673,7 @@ var QC;
         
         View.prototype.addInput= function() {
             this.input = document.createElement("input");
-            var styles = this.getPosition(0, 0, "97%", "20px", "relative") +
+            var styles = this.getPosition(0, 0, "calc(100% - 35px)", "20px", "relative") +
                 "border:1px solid rgba(90,90,90,.7);" +
                 "padding:5px;margin:1%;z-index: 2; outline: none;";
             this.input.setAttribute("id", "consoleInput");
@@ -596,21 +687,65 @@ var QC;
             // loading when needed to make sure we don't have recursive dependencies.
             if (QC.DI.load("setup").checkForConsoleToggle(keyEvent)) {
                 return;
-            } 
-            
-            if (keyEvent.keyCode === 13) {
-                this.history.saveLast(this.input.value);
-                try {
-                  this.execute.eval(this.input.value);
-                } catch(error) {
-                  // error already logged elsewhere just catching it here so we can continue execution.
-                }
-                this.input.value = "";
-            } else if (keyEvent.keyCode === 38) { // up arrow pressed
-                this.input.value = this.history.loadLast();
-            } else if (keyEvent.keyCode === 40) { // up arrow pressed
-                this.input.value = this.history.loadNext();
             }
+            
+            if (this.isReturnKey(keyEvent)) { // Return key pressed
+                this.handleReturnKey();
+                return;
+            } else if (this.isDownArrow(keyEvent)) { // up arrow pressed
+                  this.input.value = this.history.loadLast();
+            } else if (this.isUpArrow(keyEvent)) { // up arrow pressed
+                this.input.value = this.history.loadNext();
+            } else if (this.tabCompletion(keyEvent)) { // tab pressed
+                this.handleTabCompletion(keyEvent);
+            } else if (this.shouldRollbackSuggestion(keyEvent)) {
+                this.input.value = this.lastValue;
+            } else {
+                return;
+            }
+            this.moveCursorToEnd();
+        };
+        
+        View.prototype.isReturnKey = function(keyEvent) {
+            return keyEvent.keyCode === 13;
+        };
+        
+        View.prototype.isUpArrow = function(keyEvent) {
+            return keyEvent.keyCode === 38;
+        };
+        
+        View.prototype.isDownArrow = function(keyEvent) {
+            return keyEvent.keyCode === 40;
+        };
+        
+        View.prototype.requestSuggestions = function(keyEvent) {
+            return keyEvent.keyCode === 32 && keyEvent.ctrlKey;  
+        };
+        
+        View.prototype.tabCompletion = function(keyEvent) {
+            return keyEvent.keyCode === 9;
+        };
+        
+        View.prototype.shouldRollbackSuggestion = function(keyEvent) {
+            return this.lastValue && keyEvent.keyCode === 90 && keyEvent.ctrlKey;  
+        };
+        
+        View.prototype.handleReturnKey = function() {
+            this.history.saveLast(this.input.value);
+            try {
+              this.execute.eval(this.input.value);
+            } catch(error) {
+              // error already logged elsewhere just catching it here so we can continue execution.
+            }
+            this.input.value = "";
+        };
+        
+        View.prototype.handleTabCompletion = function(keyEvent) {
+          this.lastValue = this.input.value;
+          var value = this.suggest.getBestFit(this.input.value);
+          this.input.value = value;
+          keyEvent.preventDefault();
+          this.input.focus();
         };
     
         View.prototype.setLocation = function(location) {
@@ -619,6 +754,14 @@ var QC;
                 this.consoleContainer.setAttribute("style", this.getContainerStyles());
             }
         };
+        
+        View.prototype.moveCursorToEnd = function() {
+            var _this = this;
+            _this.input.focus();
+            setTimeout(() => {
+                _this.input.value = _this.input.value;
+            }, 20);
+        }
         
         View.prototype.getConsolePosition = function() {
             switch (QC.config.location) {
@@ -657,8 +800,17 @@ var QC;
         
         View.prototype.logToScreen = function(logList) {
             if (this.consoleDiv) {
-                this.consoleDiv.innerText = logList.join(String.fromCharCode(13));
+                this.consoleDiv.innerText = logList.join(this.getSeperator());
             }
+        };
+        
+        View.prototype.getSeperator = function() {
+            if (!this.logSeperator) {
+                this.logSeperator = String.fromCharCode(13) +
+                    Array(50).join("=") +
+                    String.fromCharCode(13);
+            }
+            return this.logSeperator;
         };
         
         View.prototype.toggleConsole = function() {
@@ -671,9 +823,16 @@ var QC;
             }
         };
         
+        View.prototype.getViewAsString = function() {
+            if (!this.consoleContainer) {
+                return "";
+            }
+            return this.consoleContainer.outerHTML;  
+        };
+        
         return View;
     })();
     
-    QC.DI.register("view", View, ["execute", "history"]);
+    QC.DI.register("view", View, ["execute", "history", "suggest"]);
 
 })(QC || (QC = {}));

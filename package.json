@@ -1,6 +1,6 @@
 {
   "name": "quick-console",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Quick console that gives some of the functionality of a native dev-tools console.",
   "main": "quickConsole.js",
   "keywords": [

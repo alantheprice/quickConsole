@@ -23,6 +23,12 @@ var QC;
             // don't save empty values.
             if (!value || value === "") { return; }
             
+            //  Was last command, no need to save again.
+            if (this.consoleList[this.consoleList.length - 1] === value) {
+                return;
+            }
+            
+            
             if (this.consoleList.length >= QC.config.maxConsoleHistory) {
                 this.consoleList.shift();
             }

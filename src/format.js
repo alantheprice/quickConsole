@@ -4,25 +4,29 @@ var QC;
     var Format = (function() {
 
         function Format() {
-            this.spacer = "_";
+            this.spacer = String.fromCharCode(32);
         }
 
-        Format.prototype.message = function(msg) {
+        Format.prototype.message = function(msg, viewHtml) {
             if (typeof msg === "string") {
                 return msg;
             } else if (this.isElement(msg)) {
-                return this.formatElement(msg);
+                return this.formatElement(msg, viewHtml);
             } else {
                 return this.formatJSON(msg);
             }
         };
 
-        Format.prototype.formatElement = function(msg) {
-            var prefix = "Element: Html" + String.fromCharCode(13);
-            var offset = 1;
-            return prefix + msg.outerHTML.replace(/(?:\r\n|\r|\n)/g, "#")
+        Format.prototype.formatElement = function(msg, removeChars) {
+            var prefix = "Element: Html" + String.fromCharCode(13) + Array(25).join("-");
+            var offset = 0;
+            var html = msg.outerHTML;
+            if (removeChars) {
+                html = html.replace(removeChars, "<quick-console>...</quick-console>");
+            }
+            return prefix + html.replace(/(?:\r\n|\r|\n)/g, "#")
                 .replace(/>/g, ">#")
-                .replace(/</g, "<#")
+                .replace(/</g, "#<")
                 .replace(/##/g, "#")
                 .split("#")
                 .map(val => {
@@ -50,7 +54,6 @@ var QC;
         };
         
         Format.prototype.formatJSON = function(msg) {
-            var returnObj = "";
             try {
                 return JSON.stringify(msg, null, 4);
             } catch(error) {
