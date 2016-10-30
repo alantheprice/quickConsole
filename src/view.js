@@ -3,11 +3,10 @@ var QC;
     
     var View = (function() {
 
-        function View(execute, history, suggest) {
+        function View(execute, inputHandler) {
             QC.setLocation = this.setLocation;
-            this.suggest = suggest;
             this.execute = execute;
-            this.history = history;
+            this.inputHandler = inputHandler;
         }
 
         View.prototype.addToScreen = function() {
@@ -32,81 +31,28 @@ var QC;
         };
         
         View.prototype.addInput= function() {
+            this.addCompletionHint();
             this.input = document.createElement("input");
             var styles = this.getPosition(0, 0, "calc(100% - 35px)", "20px", "relative") +
                 "border:1px solid rgba(90,90,90,.7);" +
-                "padding:5px;margin:1%;z-index: 2; outline: none;";
+                "padding:5px;margin:1%;z-index: 2; outline: none; background-color: transparent; ";
             this.input.setAttribute("id", "consoleInput");
             this.input.setAttribute("type", "text");
             this.input.setAttribute("style", styles);
-            this.input.onkeydown = (e) => this.updateInputText(e);
             this.consoleContainer.appendChild(this.input);
+            this.input.onkeydown = (e) =>  {
+                this.inputHandler.updateInputText(e, this.input, this.completionHint);
+            };
         };
         
-        View.prototype.updateInputText = function(keyEvent) {
-            // loading when needed to make sure we don't have recursive dependencies.
-            if (QC.DI.load("setup").checkForConsoleToggle(keyEvent)) {
-                return;
-            }
-            
-            if (this.isReturnKey(keyEvent)) { // Return key pressed
-                this.handleReturnKey();
-                return;
-            } else if (this.isDownArrow(keyEvent)) { // up arrow pressed
-                  this.input.value = this.history.loadLast();
-            } else if (this.isUpArrow(keyEvent)) { // up arrow pressed
-                this.input.value = this.history.loadNext();
-            } else if (this.tabCompletion(keyEvent)) { // tab pressed
-                this.handleTabCompletion(keyEvent);
-            } else if (this.shouldRollbackSuggestion(keyEvent)) {
-                this.input.value = this.lastValue;
-            } else {
-                return;
-            }
-            this.moveCursorToEnd();
+        View.prototype.addCompletionHint = function() {
+            this.completionHint = document.createElement("div");
+            this.completionHint.style = this.getPosition("0", "0", "80%", "20px", "absolute") +
+            "z-index: 2; color: rgba(40,40,40,.7); font: 13.3333px arial; " +
+            "line-height: 20px; margin: 1%; padding: 6px;";
+            this.consoleContainer.appendChild(this.completionHint);
         };
         
-        View.prototype.isReturnKey = function(keyEvent) {
-            return keyEvent.keyCode === 13;
-        };
-        
-        View.prototype.isUpArrow = function(keyEvent) {
-            return keyEvent.keyCode === 38;
-        };
-        
-        View.prototype.isDownArrow = function(keyEvent) {
-            return keyEvent.keyCode === 40;
-        };
-        
-        View.prototype.requestSuggestions = function(keyEvent) {
-            return keyEvent.keyCode === 32 && keyEvent.ctrlKey;  
-        };
-        
-        View.prototype.tabCompletion = function(keyEvent) {
-            return keyEvent.keyCode === 9;
-        };
-        
-        View.prototype.shouldRollbackSuggestion = function(keyEvent) {
-            return this.lastValue && keyEvent.keyCode === 90 && keyEvent.ctrlKey;  
-        };
-        
-        View.prototype.handleReturnKey = function() {
-            this.history.saveLast(this.input.value);
-            try {
-              this.execute.eval(this.input.value);
-            } catch(error) {
-              // error already logged elsewhere just catching it here so we can continue execution.
-            }
-            this.input.value = "";
-        };
-        
-        View.prototype.handleTabCompletion = function(keyEvent) {
-          this.lastValue = this.input.value;
-          var value = this.suggest.getBestFit(this.input.value);
-          this.input.value = value;
-          keyEvent.preventDefault();
-          this.input.focus();
-        };
     
         View.prototype.setLocation = function(location) {
             QC.config.location = location;
@@ -114,14 +60,6 @@ var QC;
                 this.consoleContainer.setAttribute("style", this.getContainerStyles());
             }
         };
-        
-        View.prototype.moveCursorToEnd = function() {
-            var _this = this;
-            _this.input.focus();
-            setTimeout(() => {
-                _this.input.value = _this.input.value;
-            }, 20);
-        }
         
         View.prototype.getConsolePosition = function() {
             switch (QC.config.location) {
@@ -193,6 +131,6 @@ var QC;
         return View;
     })();
     
-    QC.DI.register("view", View, ["execute", "history", "suggest"]);
+    QC.DI.register("view", View, ["execute", "inputHandler"]);
 
 })(QC || (QC = {}));

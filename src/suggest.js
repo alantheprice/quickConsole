@@ -1,44 +1,37 @@
 var QC;
 (function(QC) {
     "use strict";
+    
     var Suggest = (function() {
+        
         function Suggest() {
         }
         
-        Suggest.prototype.getBestFit = function(partialCommand) {
-            if (!partialCommand || partialCommand === "") {
-                return "";
-            }
-            var commands = partialCommand.split(" ");
-            var commandToComplete = commands.pop();
-            var suggestion = this.getSuggestions(commandToComplete);
-            if (commands && commands.length) {
-                return commands.join(" ") + " " + suggestion;
-            } else {
-                return suggestion;
-            }
+        Suggest.prototype.getSuggestion = function(fullCommand) {
+            var suggestion = new QC.Suggestion(fullCommand);
+            suggestion.suggestions = this.getSuggestions(suggestion.getLastCommand(), true);
+            return suggestion;
         };
         
-        Suggest.prototype.getSuggestions = function(partialCommand) {
-            var context = window;
+        Suggest.prototype.getSuggestions = function(partialCommand, ignoreErrors) {
             var tmpName = "";
-            var final = partialCommand;
-            partialCommand.split(".")
-            .forEach((name, index, arr) => {
+            return partialCommand.split(".")
+            .reduce((context, name, index, arr) => {
+                // get suggestions only for last object
                 if (arr.length === index + 1) {
-                    final = this.getSuggestionsForName(context, name);
-                    final = (tmpName !== "") ? (tmpName + "." + final) : final;
-                    return final;
+                    return this.getSuggestionsForName(context, name);
                 }
                 
                 if (!context[name]) {
-                   console.error(name + " does not exist on object: " + tmpName);
-                   return;
+                    if (!ignoreErrors) {
+                        console.error(name + " does not exist on object: " + tmpName);
+                    }
+                   return null;
                 }
                 tmpName += (tmpName !== "") ? ("." + name) : name;
-                context = context[name];
-            });
-            return final;
+                // update context to be the built object.
+                return context[name];
+            }, window);
         };
         
         Suggest.prototype.getSuggestionsForName = function(context, name) {
@@ -46,7 +39,7 @@ var QC;
             var filtered = options.filter(function(option) {
                 return option.toUpperCase().indexOf(name.toUpperCase()) === 0;
             });
-            return filtered[0] || name;
+            return filtered || [name];
         };
         
         Suggest.prototype.getContextualSuggestions = function(context) {
@@ -54,7 +47,7 @@ var QC;
             for(var i in context) {
                 suggestions.push(i);
             }
-            console.log(suggestions);
+            //console.log(suggestions);
             return suggestions;
         };
         

@@ -22,7 +22,7 @@ var QC;
             var offset = 0;
             var html = msg.outerHTML;
             if (removeChars) {
-                html = html.replace(removeChars, "<quick-console>...</quick-console>");
+                html = html.replace(removeChars, "<quick-console>[...]</quick-console>");
             }
             return prefix + html.replace(/(?:\r\n|\r|\n)/g, "#")
                 .replace(/>/g, ">#")
