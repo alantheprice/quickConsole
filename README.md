@@ -6,7 +6,7 @@ It is designed to be used in situations where the full featured, powerful browse
 Any messages that are typed into the console input will attempt to use `eval` to execute.  If that is not available (for instance in the instance of a content security policy that disallows unsafe `eval`), it will fall back to a simpler, but still powerful executor that can call single functions and output properties.
 
 # Usage: 
-1. Add to your page like so: `<script src="quickConsole.js" type="text/javascript" charset="utf-8"></script>`
+1. Add to your page like so: `<script src="quickConsole.min.js" type="text/javascript" charset="utf-8"></script>`
 2. Within your javascript call: `quickConsole.init(config)`; 
 3. you can toggle the console by pressing "Ctrl + Alt + Shift + D".
 4. Once the quick-console is open, it can be removed anytime by pressing "Ctrl + Alt + Shift + d" when focused on the input box.

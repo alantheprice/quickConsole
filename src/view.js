@@ -35,7 +35,7 @@ var QC;
             this.input = document.createElement("input");
             var styles = this.getPosition(0, 0, "calc(100% - 35px)", "20px", "relative") +
                 "border:1px solid rgba(90,90,90,.7);" +
-                "padding:5px;margin:1%;z-index: 2; outline: none; background-color: transparent; ";
+                "padding:5px;margin:1%;z-index: 2; font: 1em arial; outline: none; background-color: transparent; ";
             this.input.setAttribute("id", "consoleInput");
             this.input.setAttribute("type", "text");
             this.input.setAttribute("style", styles);
@@ -48,7 +48,7 @@ var QC;
         View.prototype.addCompletionHint = function() {
             this.completionHint = document.createElement("div");
             this.completionHint.style = this.getPosition("0", "0", "80%", "20px", "absolute") +
-            "z-index: 2; color: rgba(40,40,40,.7); font: 13.3333px arial; " +
+            "z-index: 2; color: rgba(40,40,40,.7); font: 1em arial; " +
             "line-height: 20px; margin: 1%; padding: 6px;";
             this.consoleContainer.appendChild(this.completionHint);
         };

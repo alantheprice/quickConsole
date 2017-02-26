@@ -4,6 +4,7 @@ module.exports = function(grunt) {
     grunt.loadNpmTasks('grunt-contrib-uglify');
     grunt.loadNpmTasks('grunt-contrib-copy');
     grunt.loadNpmTasks('grunt-contrib-concat');
+    grunt.loadNpmTasks('grunt-babel');
 
 
 
@@ -21,18 +22,23 @@ module.exports = function(grunt) {
         concat: {
             build: {
                 src: ["src/**/*.js"],
-                dest: 'quickConsole.js'
+                dest: 'dist/es2015QuickConsole.js'
             }
         },
-        copy: {
+        babel: {
+            options: {
+                sourceMap: false,
+                presets: ['babel-preset-es2015']
+            },
             dist: {
-                src: ["quickConsole.js"],
-                dest: "dist/quickConsole.js"
+                files: {
+                    'dist/quickConsole.js': 'dist/es2015QuickConsole.js'
+                }
             }
         }
     });
 
     // Default task(s).
-    grunt.registerTask('default', ["concat", "copy"]);//, "uglify"]);
+    grunt.registerTask('default', ["concat", "babel", "uglify"]);
 
 };
