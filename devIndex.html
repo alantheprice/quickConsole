@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+
+    <title>Html Test</title>
+    
+</head>
+
+<body>
+    <script>
+        window.addEventListener('DOMContentLoaded', function() {
+            // allows the scripts to be added before initializing the quickConsole.
+             setTimeout(() => {
+//                 quickConsole.init({location: "full"}); 
+                quickConsole.init({location: "left"});  
+             }, 500);
+        }, true);
+        let srcFiles = [
+           "config",
+           "di",
+           "execute",
+           "format",
+           "history",
+           "inputHandler",
+           "log",
+           "setup",
+           "storage",
+           "style",
+           "styleUtil",
+           "suggest",
+           "suggestion",
+           "view"
+        ];
+        srcFiles.forEach((file, index) => {
+           let script = document.createElement("script");
+           document.head.appendChild(script);
+           script.setAttribute("src", ["./src/", file, ".js"].join(""));
+           script.setAttribute("type", "text/javascript");
+           script.setAttribute("charset", "utf-8");
+        });
+    </script>
+
+</body>
