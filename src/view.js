@@ -2,29 +2,42 @@ var QC;
 (function(QC) {
 
     function View(styleUtil) {
-        QC.setLocation = this.setLocation; 
-//         this.inputHandler = inputHandler;
+        QC.setLocation = (location) => this.setLocation(location);
         this.styleUtil = styleUtil;
+        this.addCssLink(this.styleUtil.getCssString());
     }
 
+    View.prototype.addCssLink = function(cssAsString) {
+        let blob = new Blob([cssAsString], {type: 'text/css'});
+        let linkTag = this.getLinkTag();
+        linkTag.href = window.URL.createObjectURL(blob);
+    };
+
+    View.prototype.getLinkTag = function() {
+        var link = document.getElementById("qc-styles");
+        if (link) {
+            return link;
+        }
+        return this.createElement({tagName: "link", 
+                attributes: [{"id": "qc-styles"}, {"rel": "stylesheet"}], parent: document.head})
+    };
+
     View.prototype.addToScreen = function() {
-        this.consoleContainer = document.createElement("div");
-        this.styleUtil.setContainerStyle(this.consoleContainer);
-        document.body.appendChild(this.consoleContainer);
-        this.consoleDiv = document.createElement("textarea");
-        this.consoleDiv.setAttribute("readonly", "");
-        this.styleUtil.set(this.consoleDiv, "textArea");
-        this.consoleContainer.appendChild(this.consoleDiv);
+        this.consoleContainer = this.createElement({tagName: "div", parent: document.body, 
+                classes: ["qc-container", "qc-" +QC.config.location]});
+
+        this.consoleDiv = this.createElement({tagName: "textarea", parent: this.consoleContainer, 
+                    attributes: [{"readonly": ""}], classes: ["qc-text-area"]});
+
         this.addInput();
     };
     
     View.prototype.addInput= function() {
         this.addCompletionHint();
-        this.input = document.createElement("input");
-        this.input.setAttribute("id", "consoleInput");
-        this.input.setAttribute("type", "text");
-        this.styleUtil.set(this.input, "input");
-        this.consoleContainer.appendChild(this.input);
+
+        this.input = this.createElement({tagName: "input", 
+            attributes: [{"id": "consoleInput"}, {"type": "text"}], 
+            classes: ["qc-input"], parent: this.consoleContainer});
         this.addInputHandler(this.handler);
     };
 
@@ -43,15 +56,13 @@ var QC;
     }
     
     View.prototype.addCompletionHint = function() {
-        this.completionHint = document.createElement("div");
-        this.styleUtil.set(this.completionHint, "completionHint");
-        this.consoleContainer.appendChild(this.completionHint);
+        this.completionHint = this.createElement({tagName:"div", classes: ["qc-completion-hint"], parent: this.consoleContainer});
     };
     
     View.prototype.setLocation = function(location) {
         QC.config.location = location;
         if (this.consoleContainer) {
-            this.styleUtil.setContainerStyle(this.consoleContainer);
+            this.consoleContainer.className = ["qc-container", "qc-" + location].join(" ");
         }
     };
 
@@ -71,6 +82,7 @@ var QC;
     };
     
     View.prototype.toggleConsole = function() {
+        console.log("should toggle console");
         if (this.consoleContainer) {
             this.consoleContainer.remove();
             this.consoleContainer = undefined;
@@ -85,6 +97,23 @@ var QC;
             return "";
         }
         return this.consoleContainer.outerHTML;  
+    };
+
+    View.prototype.createElement = function(elementConfig) {
+        var elem = document.createElement(elementConfig.tagName);
+        if (elementConfig.parent) {
+            elementConfig.parent.appendChild(elem);
+        }
+        if (elementConfig.classes) {
+            elem.className = elementConfig.classes.join(" ");
+        }
+        if (elementConfig.attributes) {
+            elementConfig.attributes.forEach((attr) => {
+                let key = Object.keys(attr)[0];
+                elem.setAttribute(key, attr[key]);
+            });
+        }
+        return elem;
     };
     
     QC.DI.register("view", View, ["styleUtil"]);

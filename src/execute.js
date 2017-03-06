@@ -22,7 +22,7 @@ var QC;
                     this.executor = this.executeSafe;
                     this.executeSafe(evalString);
                 }
-                return Promise.reject(error.message);
+                return resolve({name: "error", value: error.message});
             }
             this.unwrapResponse(response)
             .then((unwrapped) => {

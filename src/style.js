@@ -10,7 +10,7 @@ var QC;
             overflow: "hidden",
             color: "#404040"
         },
-        textArea: {
+        "text-area": {
             position: "absolute",
             background: "rgba(250, 250, 250, 0.87)",
             border: "none",
@@ -28,7 +28,7 @@ var QC;
             outline: "none",
             "background-color": "transparent"
         },
-        completionHint: {
+        "completion-hint": {
             position: "absolute",
             rect: "0 0 80% 20px",
             "z-index": 2,
@@ -36,7 +36,7 @@ var QC;
             font: "1em arial",
             "line-height": "20px",
             margin: "1%",
-            padding: "6px"
+            padding: "5px"
         },
         left: {
             rect: "0 0 50% 100%"

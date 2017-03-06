@@ -6,6 +6,13 @@ var QC;
         this.style = style;
     }
 
+    StyleUtil.prototype.getCssString = function getCssString() {
+        let keys = Object.keys(this.style);
+        return keys.map((key) => {
+            return [".qc-", key, " { ", this.get(key), " }"].join("");
+        }).join("\n");
+    };
+
     StyleUtil.prototype.get = function get(styleKey) {
         return this.toStyle(this.style[styleKey]);
     };
