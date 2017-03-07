@@ -1,6 +1,7 @@
 var QC;
 (function(QC) {
 
+    View.STYLE_PREFIX = "qc-";
     function View(styleUtil) {
         QC.setLocation = (location) => this.setLocation(location);
         this.styleUtil = styleUtil;
@@ -24,10 +25,10 @@ var QC;
 
     View.prototype.addToScreen = function() {
         this.consoleContainer = this.createElement({tagName: "div", parent: document.body, 
-                classes: ["qc-container", "qc-" +QC.config.location]});
+                classes: ["container", QC.config.location]});
 
         this.consoleDiv = this.createElement({tagName: "textarea", parent: this.consoleContainer, 
-                    attributes: [{"readonly": ""}], classes: ["qc-text-area"]});
+                    attributes: [{"readonly": ""}], classes: ["text-area"]});
 
         this.addInput();
     };
@@ -37,7 +38,7 @@ var QC;
 
         this.input = this.createElement({tagName: "input", 
             attributes: [{"id": "consoleInput"}, {"type": "text"}], 
-            classes: ["qc-input"], parent: this.consoleContainer});
+            classes: ["input"], parent: this.consoleContainer});
         this.addInputHandler(this.handler);
     };
 
@@ -56,13 +57,13 @@ var QC;
     }
     
     View.prototype.addCompletionHint = function() {
-        this.completionHint = this.createElement({tagName:"div", classes: ["qc-completion-hint"], parent: this.consoleContainer});
+        this.completionHint = this.createElement({tagName:"div", classes: ["completion-hint"], parent: this.consoleContainer});
     };
     
     View.prototype.setLocation = function(location) {
         QC.config.location = location;
         if (this.consoleContainer) {
-            this.consoleContainer.className = ["qc-container", "qc-" + location].join(" ");
+            this.consoleContainer.className = ["qc-container", location].join(" " + View.STYLE_PREFIX);
         }
     };
 
@@ -105,7 +106,7 @@ var QC;
             elementConfig.parent.appendChild(elem);
         }
         if (elementConfig.classes) {
-            elem.className = elementConfig.classes.join(" ");
+            elem.className = View.STYLE_PREFIX + elementConfig.classes.join(" " + View.STYLE_PREFIX);
         }
         if (elementConfig.attributes) {
             elementConfig.attributes.forEach((attr) => {

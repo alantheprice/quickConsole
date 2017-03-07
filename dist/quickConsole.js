@@ -81,7 +81,7 @@ var QC;
                 dependencies.push(dep);
             });
         }
-        //  FROM: http://stackoverflow.com/a/28244500  cr
+        //  FROM: http://stackoverflow.com/a/28244500 
         return new (obj.func.bind.apply(obj.func, [null].concat(dependencies)))();
     };
 
@@ -89,6 +89,9 @@ var QC;
         var _this2 = this;
 
         return this.registered.map(function (build) {
+            if (!build) {
+                return "";
+            }
             var deps = _this2.getDependencies(build.dependencies, [build.name], 2);
             return build.name + ":" + "\n" + deps;
         }).join("\n");
@@ -97,8 +100,11 @@ var QC;
     DI.prototype.getDependencies = function (deps, referencers, insetDepth) {
         var _this3 = this;
 
-        if ((!deps || !deps.length) && insetDepth === 2) {
-            return Array(insetDepth).join("--") + "No Dependencies \n";
+        if (!deps || !deps.length) {
+            if (insetDepth < 2) {
+                return Array(insetDepth).join("--") + "No Dependencies \n";
+            }
+            return "";
         }
         return deps.map(function (dep) {
             if (referencers.indexOf(dep) > -1) {
@@ -106,7 +112,8 @@ var QC;
             }
             var ancestors = referencers.slice(0);
             ancestors.push(dep);
-            return Array(insetDepth).join("--") + dep + "\n" + _this3.getDependencies(_this3.buildable[dep].dependencies, ancestors, insetDepth + 1);
+            var buildable = _this3.buildable[dep] || {};
+            return Array(insetDepth).join("--") + dep + "\n" + _this3.getDependencies(buildable.dependencies, ancestors, insetDepth + 1);
         }).join("");
     };
 
@@ -119,53 +126,50 @@ var QC;
     "use strict";
 
     function Execute(log) {
-        this.clearFunctionsOptions = ["clear();", "clear()", "Clear();", "Clear()"];
-        this.log = log;
+        //this.log = log;
         this.executor = this.executeEval;
     }
 
     Execute.prototype.eval = function (evalString) {
-        if (this.requestingClear(evalString)) {
-            this.log.clear();
-            return;
-        }
-        this.executor(evalString);
-    };
-
-    Execute.prototype.requestingClear = function (evalString) {
-        return this.clearFunctionsOptions.indexOf(evalString) > -1;
+        return this.executor(evalString);
     };
 
     Execute.prototype.executeEval = function (evalString) {
-        var response;
-        try {
-            response = eval(evalString);
-        } catch (error) {
-            if (error.message && error.message.indexOf("Refused to evaluate a string as JavaScript because 'unsafe-eval'") > -1) {
-                this.log.write("log", "Eval is not allowed on this platform, defaulting to simple execution which only allow direct function calls with primitives as params");
-                this.executor = this.executeSafe;
-                this.executeSafe(evalString);
+        var _this4 = this;
+
+        return new Promise(function (resolve, reject) {
+            var response;
+            try {
+                response = eval(evalString);
+            } catch (error) {
+                if (error.message && error.message.indexOf("Refused to evaluate a string as JavaScript because 'unsafe-eval'") > -1) {
+                    resolve({ name: "log", value: "Eval is not allowed on this platform, defaulting to simple execution which only allow direct function calls with primitives as params" });
+                    _this4.executor = _this4.executeSafe;
+                    _this4.executeSafe(evalString);
+                }
+                return resolve({ name: "error", value: error.message });
             }
-            this.log.write("error", error.message);
-        }
-        this.handleExecuteResponse(response);
+            _this4.unwrapResponse(response).then(function (unwrapped) {
+                resolve(unwrapped);
+            });
+        });
     };
 
     Execute.prototype.executeSafe = function (inputValue) {
-        var _this4 = this;
+        var _this5 = this;
 
         if (inputValue.indexOf("(") > -1) {
             var parts = inputValue.split("(");
             var funcName = parts[0];
             var params = parts && parts.length ? parts[1].split(")")[0].split(",") : [];
             params = params.map(function (val) {
-                return _this4.parseParam(val);
+                return _this5.parseParam(val);
             }).filter(function (val) {
                 return !!val;
             });
-            this.executeFunction(funcName, params);
+            return this.executeFunction(funcName, params);
         } else {
-            this.logObject(inputValue);
+            return this.getObject(inputValue);
         }
     };
 
@@ -213,10 +217,10 @@ var QC;
             func = func[name];
         });
         var response = func.apply(context, params);
-        this.handleExecuteResponse(response);
+        return this.unwrapResponse(response);
     };
 
-    Execute.prototype.logObject = function (objName) {
+    Execute.prototype.getObject = function (objName) {
         var context = window;
         var tmpName = "window";
         objName.split(".").forEach(function (name) {
@@ -227,26 +231,23 @@ var QC;
             tmpName += "." + name;
             context = context[name];
         });
-        this.handleExecuteResponse(context);
+        return this.unwrapResponse(context);
     };
 
-    Execute.prototype.handleExecuteResponse = function (response) {
-        var _this5 = this;
-
-        if (!response) {
-            return;
-        }
-        // check to see if it is a promise
-        if (response.then) {
-            response.then(function (returnVal) {
-                _this5.log.write("log", returnVal);
-            });
-            return;
-        }
-        this.log.write("log", response);
+    Execute.prototype.unwrapResponse = function (response) {
+        return new Promise(function (resolve, reject) {
+            response = response || "undefined";
+            // check to see if it is a promise
+            if (response.then) {
+                response.then(function (returnVal) {
+                    resolve({ name: "log", value: returnVal });
+                });
+            }
+            resolve({ name: "log", value: response });
+        });
     };
 
-    QC.DI.register("execute", Execute, ["log"]);
+    QC.DI.register("execute", Execute, []);
 })(QC || (QC = {}));
 
 var QC;
@@ -376,10 +377,19 @@ var QC;
 var QC;
 (function (QC) {
 
-    function InputHandler(execute, history, suggest) {
+    function InputHandler(execute, history, suggest, log, view) {
+        var _this7 = this;
+
+        this.clearFunctionsOptions = ["clear();", "clear()", "Clear();", "Clear()"];
         this.execute = execute;
         this.history = history;
         this.suggest = suggest;
+        this.log = log;
+        this.view = view;
+
+        this.view.addInputHandler(function (e, i, c) {
+            return _this7.updateInputText(e, i, c);
+        });
     }
 
     InputHandler.prototype.updateInputText = function (keyEvent, input, completionHint) {
@@ -413,10 +423,23 @@ var QC;
         this.moveCursorToEnd(input, completionHint);
     };
 
+    InputHandler.prototype.requestingClear = function (evalString) {
+        return this.clearFunctionsOptions.indexOf(evalString) > -1;
+    };
+
     InputHandler.prototype.handleReturnKey = function (input) {
+        var _this8 = this;
+
         this.history.saveLast(input.value);
+        if (this.requestingClear(input.value)) {
+            this.log.clear();
+            input.value = "";
+            return;
+        }
         try {
-            this.execute.eval(input.value);
+            this.execute.eval(input.value).then(function (response) {
+                _this8.log.write(response.name, response.value);
+            });
         } catch (error) {
             // error already logged elsewhere just catching it here so we can continue execution.
         }
@@ -440,12 +463,12 @@ var QC;
     };
 
     InputHandler.prototype.updateSuggestionsAfterTimeout = function (input, hint) {
-        var _this7 = this;
+        var _this9 = this;
 
         clearTimeout(this.suggestionTimeoutId);
 
         this.suggestionTimeoutId = setTimeout(function () {
-            _this7.populateHint(hint, _this7.suggest.getSuggestion(input.value));
+            _this9.populateHint(hint, _this9.suggest.getSuggestion(input.value));
         }, 50);
     };
 
@@ -456,7 +479,7 @@ var QC;
         hint.innerText = suggestion.getAutoCompetion();
     };
 
-    QC.DI.register("inputHandler", InputHandler, ["execute", "history", "suggest"]);
+    QC.DI.register("inputHandler", InputHandler, ["execute", "history", "suggest", "log", "view"]);
 })(QC || (QC = {}));
 var QC;
 (function (QC) {
@@ -517,7 +540,7 @@ var QC;
 
     // view is recursive, we need to solve this
 
-    function Setup(log, view) {
+    function Setup(log, view, inputHandler) {
         this.log = log;
         this.view = view;
         QC.init = this.init;
@@ -528,23 +551,23 @@ var QC;
     }
 
     Setup.prototype.overrideNativeConsole = function () {
-        var _this8 = this;
+        var _this10 = this;
 
         console.log = function (msg) {
-            return _this8.log.write("log", msg);
+            return _this10.log.write("log", msg);
         };
         console.error = function (msg) {
-            return _this8.log.write("error", msg);
+            return _this10.log.write("error", msg);
         };
         console.warn = function (msg) {
-            return _this8.log.write("warn", msg);
+            return _this10.log.write("warn", msg);
         };
         console.info = function (msg) {
-            return _this8.log.write("info", msg);
+            return _this10.log.write("info", msg);
         };
         console.clear = this.log.clear;
         window.onerror = function (errorMsg, url, lineNumber, column) {
-            return _this8.log.error(errorMsg, url, lineNumber, column);
+            return _this10.log.error(errorMsg, url, lineNumber, column);
         };
     };
 
@@ -571,12 +594,12 @@ var QC;
     };
 
     Setup.prototype.registerKeyHandler = function (obj) {
-        var _this9 = this;
+        var _this11 = this;
 
         var elem = obj || window;
         var currentHandler = elem.onkeydown;
         elem.onkeyup = function (e) {
-            _this9.checkForConsoleToggle(e);
+            _this11.checkForConsoleToggle(e);
             if (currentHandler) {
                 currentHandler(e);
             }
@@ -584,20 +607,20 @@ var QC;
     };
 
     Setup.prototype.checkForConsoleToggle = function (e) {
-        var _this10 = this;
+        var _this12 = this;
 
         // ctrl + alt + shift + d to open console
         if (e.shiftKey && e.altKey && e.ctrlKey && e.keyCode === 68) {
             clearTimeout(this.toggleConsoleTimeout);
             this.toggleConsoleTimeout = setTimeout(function () {
-                _this10.view.toggleConsole();
+                _this12.view.toggleConsole();
             }, 200);
             return true;
         }
         return false;
     };
 
-    QC.DI.register("setup", Setup, ["log", "view"]);
+    QC.DI.register("setup", Setup, ["log", "view", "inputHandler"]);
 })(QC || (QC = {}));
 var QC;
 (function (QC) {
@@ -646,26 +669,28 @@ var QC;
             position: "absolute",
             background: "rgba(250, 250, 250, .87)",
             "z-index": 2000,
-            overflow: "auto",
+            overflow: "hidden",
             color: "#404040"
         },
-        textArea: {
+        "text-area": {
             position: "absolute",
             background: "rgba(250, 250, 250, 0.87)",
-            rect: "5px 50px calc(100% - 20px) calc(100% - 60px)"
+            border: "none",
+            rect: "0 50px 100% calc(100% - 60px)"
         },
         input: {
             position: "relative",
-            rect: "0 0 calc(100% - 35px) 20px",
-            border: "1px solid rgba(90, 90, 90, 0.7);",
-            padding: "5px",
+            rect: "0 0 calc(100% - 22px) 20px",
+            border: "1px solid rgba(90, 90, 90, 0.4);",
+            padding: "4px",
+            "border-radius": "5px",
             margin: "1%",
             "z-index": 2,
             font: "1em arial",
             outline: "none",
             "background-color": "transparent"
         },
-        completionHint: {
+        "completion-hint": {
             position: "absolute",
             rect: "0 0 80% 20px",
             "z-index": 2,
@@ -673,7 +698,7 @@ var QC;
             font: "1em arial",
             "line-height": "20px",
             margin: "1%",
-            padding: "6px"
+            padding: "5px"
         },
         left: {
             rect: "0 0 50% 100%"
@@ -700,12 +725,19 @@ var QC;
     "use strict";
 
     function StyleUtil(style) {
-        console.log(style);
         this.style = style;
     }
 
+    StyleUtil.prototype.getCssString = function getCssString() {
+        var _this13 = this;
+
+        var keys = Object.keys(this.style);
+        return keys.map(function (key) {
+            return [".qc-", key, " { ", _this13.get(key), " }"].join("");
+        }).join("\n");
+    };
+
     StyleUtil.prototype.get = function get(styleKey) {
-        console.log(this.toStyle(this.style[styleKey]));
         return this.toStyle(this.style[styleKey]);
     };
 
@@ -714,18 +746,16 @@ var QC;
     };
 
     StyleUtil.prototype.toStyle = function toStyle(obj) {
-        var _this11 = this;
+        var _this14 = this;
 
         var keys = Object.keys(obj);
         return keys.map(function (key) {
-            return _this11.toStyleRule(key, obj[key]);
+            return _this14.toStyleRule(key, obj[key]);
         }).join(" ");
     };
 
     StyleUtil.prototype.toStyleRule = function (name, value) {
         if (name === "rect") {
-            console.log(name + " " + value);
-
             var _getRectStylesAsArray = this.getRectStylesAsArray(value),
                 _getRectStylesAsArray2 = _slicedToArray(_getRectStylesAsArray, 4),
                 left = _getRectStylesAsArray2[0],
@@ -739,7 +769,7 @@ var QC;
     };
 
     StyleUtil.prototype.setContainerStyle = function getContainer(container) {
-        this.style.container.rect = this.getConsolePosition();
+        this.style.container.rect = this.getConsolePosition().rect;
         container.setAttribute("style", this.toStyle(this.style.container));
     };
 
@@ -748,7 +778,6 @@ var QC;
     };
 
     StyleUtil.prototype.getRectStylesAsArray = function getRectStylesAsArray(stylesString) {
-        console.log(stylesString);
         var styles = stylesString.split(" ");
         if (styles.length === 4) {
             return styles;
@@ -802,13 +831,13 @@ var QC;
     };
 
     Suggest.prototype.getSuggestions = function (partialCommand, ignoreErrors) {
-        var _this12 = this;
+        var _this15 = this;
 
         var tmpName = "";
         return partialCommand.split(".").reduce(function (context, name, index, arr) {
             // get suggestions only for last object
             if (arr.length === index + 1) {
-                return _this12.getSuggestionsForName(context, name);
+                return _this15.getSuggestionsForName(context, name);
             }
 
             if (!context[name]) {
@@ -860,14 +889,14 @@ var QC;
     };
 
     Suggestion.prototype.getAutoCompetion = function () {
-        var _this13 = this;
+        var _this16 = this;
 
         if (!this.suggestions || !this.suggestions.length) {
             return this.fullCommand;
         }
         return this.fullCommand.split(".").map(function (text, index, arr) {
             if (arr.length === index + 1) {
-                return _this13.getBestSuggestion() || text;
+                return _this16.getBestSuggestion() || text;
             }
             return text;
         }).join(".");
@@ -887,48 +916,75 @@ var QC;
 var QC;
 (function (QC) {
 
-    function View(execute, inputHandler, styleUtil) {
-        QC.setLocation = this.setLocation;
-        this.execute = execute;
-        this.inputHandler = inputHandler;
+    View.STYLE_PREFIX = "qc-";
+    function View(styleUtil) {
+        var _this17 = this;
+
+        QC.setLocation = function (location) {
+            return _this17.setLocation(location);
+        };
         this.styleUtil = styleUtil;
+        this.addCssLink(this.styleUtil.getCssString());
     }
 
+    View.prototype.addCssLink = function (cssAsString) {
+        var blob = new Blob([cssAsString], { type: 'text/css' });
+        var linkTag = this.getLinkTag();
+        linkTag.href = window.URL.createObjectURL(blob);
+    };
+
+    View.prototype.getLinkTag = function () {
+        var link = document.getElementById("qc-styles");
+        if (link) {
+            return link;
+        }
+        return this.createElement({ tagName: "link",
+            attributes: [{ "id": "qc-styles" }, { "rel": "stylesheet" }], parent: document.head });
+    };
+
     View.prototype.addToScreen = function () {
-        this.consoleContainer = document.createElement("div");
-        this.styleUtil.setContainerStyle(this.consoleContainer);
-        document.body.appendChild(this.consoleContainer);
-        this.consoleDiv = document.createElement("textarea");
-        this.consoleDiv.setAttribute("readonly", "");
-        this.styleUtil.set(this.consoleDiv, "textArea");
-        this.consoleContainer.appendChild(this.consoleDiv);
+        this.consoleContainer = this.createElement({ tagName: "div", parent: document.body,
+            classes: ["container", QC.config.location] });
+
+        this.consoleDiv = this.createElement({ tagName: "textarea", parent: this.consoleContainer,
+            attributes: [{ "readonly": "" }], classes: ["text-area"] });
+
         this.addInput();
     };
 
     View.prototype.addInput = function () {
-        var _this14 = this;
-
         this.addCompletionHint();
-        this.input = document.createElement("input");
-        this.input.setAttribute("id", "consoleInput");
-        this.input.setAttribute("type", "text");
-        this.styleUtil.set(this.input, "input");
-        this.consoleContainer.appendChild(this.input);
+
+        this.input = this.createElement({ tagName: "input",
+            attributes: [{ "id": "consoleInput" }, { "type": "text" }],
+            classes: ["input"], parent: this.consoleContainer });
+        this.addInputHandler(this.handler);
+    };
+
+    View.prototype.addInputHandler = function (handler) {
+        var _this18 = this;
+
+        if (this.addedHandler) {
+            return;
+        }
+        if (!this.input) {
+            this.handler = handler || this.handler;
+            return;
+        }
+        this.addedHandler = true;
         this.input.onkeydown = function (e) {
-            _this14.inputHandler.updateInputText(e, _this14.input, _this14.completionHint);
+            handler(e, _this18.input, _this18.completionHint);
         };
     };
 
     View.prototype.addCompletionHint = function () {
-        this.completionHint = document.createElement("div");
-        this.styleUtil.set(this.completionHint, "completionHint");
-        this.consoleContainer.appendChild(this.completionHint);
+        this.completionHint = this.createElement({ tagName: "div", classes: ["completion-hint"], parent: this.consoleContainer });
     };
 
     View.prototype.setLocation = function (location) {
         QC.config.location = location;
         if (this.consoleContainer) {
-            this.styleUtil.setContainerStyle(this.consoleContainer);
+            this.consoleContainer.className = ["qc-container", location].join(" " + View.STYLE_PREFIX);
         }
     };
 
@@ -946,6 +1002,7 @@ var QC;
     };
 
     View.prototype.toggleConsole = function () {
+        console.log("should toggle console");
         if (this.consoleContainer) {
             this.consoleContainer.remove();
             this.consoleContainer = undefined;
@@ -962,5 +1019,22 @@ var QC;
         return this.consoleContainer.outerHTML;
     };
 
-    QC.DI.register("view", View, ["execute", "inputHandler", "styleUtil"]);
+    View.prototype.createElement = function (elementConfig) {
+        var elem = document.createElement(elementConfig.tagName);
+        if (elementConfig.parent) {
+            elementConfig.parent.appendChild(elem);
+        }
+        if (elementConfig.classes) {
+            elem.className = View.STYLE_PREFIX + elementConfig.classes.join(" " + View.STYLE_PREFIX);
+        }
+        if (elementConfig.attributes) {
+            elementConfig.attributes.forEach(function (attr) {
+                var key = Object.keys(attr)[0];
+                elem.setAttribute(key, attr[key]);
+            });
+        }
+        return elem;
+    };
+
+    QC.DI.register("view", View, ["styleUtil"]);
 })(QC || (QC = {}));

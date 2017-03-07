@@ -3,7 +3,6 @@ var QC;
     "use strict";
     
     function Execute(log) {
-        //this.log = log;
         this.executor = this.executeEval;
     }
     
@@ -18,7 +17,7 @@ var QC;
                 response = eval(evalString);
             } catch(error) {
                 if (error.message && error.message.indexOf("Refused to evaluate a string as JavaScript because 'unsafe-eval'") > -1) {
-                    resolve({name: "log", value: "Eval is not allowed on this platform, defaulting to simple execution which only allow direct function calls with primitives as params"});
+                    resolve({name: "log", value: "Eval is not allowed on this platform, defaulting to simple execution which only allows direct function calls with primitives as params"});
                     this.executor = this.executeSafe;
                     this.executeSafe(evalString);
                 }
@@ -109,7 +108,7 @@ var QC;
     Execute.prototype.unwrapResponse = function (response) {
         return new Promise((resolve, reject) => {
             response = response || "undefined";
-            // check to see if it is a promise
+            // if it is a promise, unwrap it.
             if (response.then) {
                 response.then(returnVal => {
                     resolve({name: "log", value: returnVal});

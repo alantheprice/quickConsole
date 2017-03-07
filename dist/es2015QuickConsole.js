@@ -76,21 +76,27 @@ var QC;
                 dependencies.push(dep);
             });
         }
-        //  FROM: http://stackoverflow.com/a/28244500  cr
+        //  FROM: http://stackoverflow.com/a/28244500 
         return new (obj.func.bind.apply(obj.func, [null].concat(dependencies)))();
 
     };
     
     DI.prototype.getDependencyMap = function() {
         return this.registered.map(build => {
+            if (!build) {
+                return "";
+            }
             let deps = this.getDependencies(build.dependencies, [build.name], 2);
             return build.name + ":" + "\n" + deps;
         }).join("\n");
     };
     
     DI.prototype.getDependencies = function(deps, referencers, insetDepth) {
-        if ((!deps || !deps.length) && insetDepth === 2) {
-            return Array(insetDepth).join("--") + "No Dependencies \n";
+        if ((!deps || !deps.length)) {
+            if (insetDepth < 2) {
+                return Array(insetDepth).join("--") + "No Dependencies \n";
+            }
+            return "";
         }
         return deps.map(dep => {
             if (referencers.indexOf(dep) > -1) {
@@ -98,8 +104,9 @@ var QC;
             }
             var ancestors = referencers.slice(0);
             ancestors.push(dep);
+            let buildable = this.buildable[dep] || {};
             return Array(insetDepth).join("--") + dep + "\n" + 
-                this.getDependencies(this.buildable[dep].dependencies, ancestors, insetDepth +1);
+                this.getDependencies(buildable.dependencies, ancestors, insetDepth +1);
         }).join("");
     };
 
@@ -114,48 +121,44 @@ var QC;
     "use strict";
     
     function Execute(log) {
-        this.clearFunctionsOptions = ["clear();", "clear()", "Clear();", "Clear()"];
-        this.log = log;
+        //this.log = log;
         this.executor = this.executeEval;
     }
     
     Execute.prototype.eval = function(evalString) {
-        if (this.requestingClear(evalString)) {
-            this.log.clear();
-            return;
-        }
-        this.executor(evalString);
-    };
-
-    Execute.prototype.requestingClear = function(evalString) {
-        return this.clearFunctionsOptions.indexOf(evalString) > -1;
+        return this.executor(evalString);
     };
 
     Execute.prototype.executeEval = function(evalString) {
-        var response;
-        try{
-            response = eval(evalString);
-        } catch(error) {
-            if (error.message && error.message.indexOf("Refused to evaluate a string as JavaScript because 'unsafe-eval'") > -1) {
-                this.log.write("log", "Eval is not allowed on this platform, defaulting to simple execution which only allow direct function calls with primitives as params");
-                this.executor = this.executeSafe;
-                this.executeSafe(evalString);
+        return new Promise((resolve, reject) => {
+            var response;
+            try{
+                response = eval(evalString);
+            } catch(error) {
+                if (error.message && error.message.indexOf("Refused to evaluate a string as JavaScript because 'unsafe-eval'") > -1) {
+                    resolve({name: "log", value: "Eval is not allowed on this platform, defaulting to simple execution which only allow direct function calls with primitives as params"});
+                    this.executor = this.executeSafe;
+                    this.executeSafe(evalString);
+                }
+                return resolve({name: "error", value: error.message});
             }
-            this.log.write("error", error.message);
-        }
-        this.handleExecuteResponse(response);
+            this.unwrapResponse(response)
+            .then((unwrapped) => {
+                resolve(unwrapped);
+            })
+        });
     };
     
     Execute.prototype.executeSafe = function(inputValue) {
         if (inputValue.indexOf("(") > -1) {
-        var parts = inputValue.split("(");
-        var funcName = parts[0];
-        var params = (parts && parts.length) ? parts[1].split(")")[0].split(",") : [];
-        params = params.map((val) => this.parseParam(val))
-            .filter((val) => {return !!val;});
-        this.executeFunction(funcName, params);
+            var parts = inputValue.split("(");
+            var funcName = parts[0];
+            var params = (parts && parts.length) ? parts[1].split(")")[0].split(",") : [];
+            params = params.map((val) => this.parseParam(val))
+                .filter((val) => {return !!val;});
+            return this.executeFunction(funcName, params);
         } else {
-        this.logObject(inputValue);
+            return this.getObject(inputValue);
         }
     };
 
@@ -204,10 +207,10 @@ var QC;
             func = func[name];
         });
         var response = func.apply(context, params);
-        this.handleExecuteResponse(response);
+        return this.unwrapResponse(response);
     };
     
-    Execute.prototype.logObject = function(objName) {
+    Execute.prototype.getObject = function(objName) {
         var context = window;
         var tmpName = "window";
         objName.split(".").forEach(name => {
@@ -218,24 +221,23 @@ var QC;
             tmpName += ("." + name);
             context = context[name];
         });
-        this.handleExecuteResponse(context);
+        return this.unwrapResponse(context);
     };
+
+    Execute.prototype.unwrapResponse = function (response) {
+        return new Promise((resolve, reject) => {
+            response = response || "undefined";
+            // check to see if it is a promise
+            if (response.then) {
+                response.then(returnVal => {
+                    resolve({name: "log", value: returnVal});
+                })
+            }
+            resolve({name: "log", value: response});
+        });
+    }
     
-    Execute.prototype.handleExecuteResponse = function(response) {
-        if (!response) {
-            return;
-        }
-        // check to see if it is a promise
-        if (response.then) {
-            response.then(returnVal => {
-                this.log.write("log", returnVal);
-            });
-            return;
-        }
-        this.log.write("log", response);
-    };
-    
-    QC.DI.register("execute", Execute, ["log"]);
+    QC.DI.register("execute", Execute, []);
 
     
 })(QC || (QC = {}));
@@ -374,10 +376,17 @@ var QC;
 (function(QC) {
 
     
-    function InputHandler(execute, history, suggest) {
+    function InputHandler(execute, history, suggest, log, view) {
+        this.clearFunctionsOptions = ["clear();", "clear()", "Clear();", "Clear()"];
         this.execute = execute;
         this.history = history;
         this.suggest = suggest;
+        this.log = log;
+        this.view = view;
+
+        this.view.addInputHandler((e, i, c) => {
+            return this.updateInputText(e, i, c);
+        })
     }
     
     InputHandler.prototype.updateInputText = function(keyEvent, input, completionHint) {
@@ -408,11 +417,23 @@ var QC;
         }
         this.moveCursorToEnd(input, completionHint);
     };
+
+    InputHandler.prototype.requestingClear = function(evalString) {
+        return this.clearFunctionsOptions.indexOf(evalString) > -1;
+    };
     
     InputHandler.prototype.handleReturnKey = function(input) {
         this.history.saveLast(input.value);
+        if (this.requestingClear(input.value)) {
+            this.log.clear();
+            input.value = "";
+            return;
+        }
         try {
-            this.execute.eval(input.value);
+            this.execute.eval(input.value)
+                .then(response => {
+                    this.log.write(response.name, response.value);
+                });
         } catch(error) {
             // error already logged elsewhere just catching it here so we can continue execution.
         }
@@ -450,7 +471,7 @@ var QC;
         hint.innerText = suggestion.getAutoCompetion();
     };
     
-    QC.DI.register("inputHandler", InputHandler, ["execute", "history", "suggest"]);
+    QC.DI.register("inputHandler", InputHandler, ["execute", "history", "suggest", "log", "view"]);
 
 })(QC || (QC = {}));
 var QC;
@@ -517,7 +538,7 @@ var QC;
     "use strict";
 
     // view is recursive, we need to solve this
-    function Setup(log, view) {
+    function Setup(log, view, inputHandler) {
         this.log = log;
         this.view = view;
         QC.init = this.init;
@@ -581,7 +602,7 @@ var QC;
         return false;
     };
     
-    QC.DI.register("setup", Setup, ["log", "view"]);
+    QC.DI.register("setup", Setup, ["log", "view", "inputHandler"]);
 
 })(QC || (QC = {}));
 var QC;
@@ -634,26 +655,28 @@ var QC;
             position: "absolute",
             background: "rgba(250, 250, 250, .87)",
             "z-index": 2000,
-            overflow: "auto",
+            overflow: "hidden",
             color: "#404040"
         },
-        textArea: {
+        "text-area": {
             position: "absolute",
             background: "rgba(250, 250, 250, 0.87)",
-            rect: "5px 50px calc(100% - 20px) calc(100% - 60px)"
+            border: "none",
+            rect: "0 50px 100% calc(100% - 60px)"
         },
         input: {
             position: "relative",
-            rect: "0 0 calc(100% - 35px) 20px",
-            border: "1px solid rgba(90, 90, 90, 0.7);",
-            padding:"5px",
+            rect: "0 0 calc(100% - 22px) 20px",
+            border: "1px solid rgba(90, 90, 90, 0.4);",
+            padding:"4px",
+            "border-radius": "5px",
             margin:"1%",
             "z-index": 2,
             font: "1em arial",
             outline: "none",
             "background-color": "transparent"
         },
-        completionHint: {
+        "completion-hint": {
             position: "absolute",
             rect: "0 0 80% 20px",
             "z-index": 2,
@@ -661,7 +684,7 @@ var QC;
             font: "1em arial",
             "line-height": "20px",
             margin: "1%",
-            padding: "6px"
+            padding: "5px"
         },
         left: {
             rect: "0 0 50% 100%"
@@ -689,12 +712,17 @@ var QC;
     "use strict";
 
     function StyleUtil(style) {
-        console.log(style);
         this.style = style;
     }
 
+    StyleUtil.prototype.getCssString = function getCssString() {
+        let keys = Object.keys(this.style);
+        return keys.map((key) => {
+            return [".qc-", key, " { ", this.get(key), " }"].join("");
+        }).join("\n");
+    };
+
     StyleUtil.prototype.get = function get(styleKey) {
-        console.log(this.toStyle(this.style[styleKey]));
         return this.toStyle(this.style[styleKey]);
     };
 
@@ -711,7 +739,6 @@ var QC;
     
     StyleUtil.prototype.toStyleRule = function(name, value) {
         if (name === "rect") {
-            console.log(name + " " + value);
             let [left, top, width, height] = this.getRectStylesAsArray(value);
             return this.getRect(left, top, width, height);
         }
@@ -719,7 +746,7 @@ var QC;
     };
     
     StyleUtil.prototype.setContainerStyle = function getContainer(container) {
-        this.style.container.rect = this.getConsolePosition();
+        this.style.container.rect = this.getConsolePosition().rect;
         container.setAttribute("style", this.toStyle(this.style.container));
     };
     
@@ -733,7 +760,6 @@ var QC;
     };
 
     StyleUtil.prototype.getRectStylesAsArray = function getRectStylesAsArray(stylesString) {
-        console.log(stylesString);
         let styles = stylesString.split(" ");
         if (styles.length === 4) {
             return styles;
@@ -877,47 +903,69 @@ var QC;
 var QC;
 (function(QC) {
 
-    function View(execute, inputHandler, styleUtil) {
-        QC.setLocation = this.setLocation; 
-        this.execute = execute;
-        this.inputHandler = inputHandler;
+    View.STYLE_PREFIX = "qc-";
+    function View(styleUtil) {
+        QC.setLocation = (location) => this.setLocation(location);
         this.styleUtil = styleUtil;
+        this.addCssLink(this.styleUtil.getCssString());
     }
 
+    View.prototype.addCssLink = function(cssAsString) {
+        let blob = new Blob([cssAsString], {type: 'text/css'});
+        let linkTag = this.getLinkTag();
+        linkTag.href = window.URL.createObjectURL(blob);
+    };
+
+    View.prototype.getLinkTag = function() {
+        var link = document.getElementById("qc-styles");
+        if (link) {
+            return link;
+        }
+        return this.createElement({tagName: "link", 
+                attributes: [{"id": "qc-styles"}, {"rel": "stylesheet"}], parent: document.head})
+    };
+
     View.prototype.addToScreen = function() {
-        this.consoleContainer = document.createElement("div");
-        this.styleUtil.setContainerStyle(this.consoleContainer);
-        document.body.appendChild(this.consoleContainer);
-        this.consoleDiv = document.createElement("textarea");
-        this.consoleDiv.setAttribute("readonly", "");
-        this.styleUtil.set(this.consoleDiv, "textArea");
-        this.consoleContainer.appendChild(this.consoleDiv);
+        this.consoleContainer = this.createElement({tagName: "div", parent: document.body, 
+                classes: ["container", QC.config.location]});
+
+        this.consoleDiv = this.createElement({tagName: "textarea", parent: this.consoleContainer, 
+                    attributes: [{"readonly": ""}], classes: ["text-area"]});
+
         this.addInput();
     };
     
     View.prototype.addInput= function() {
         this.addCompletionHint();
-        this.input = document.createElement("input");
-        this.input.setAttribute("id", "consoleInput");
-        this.input.setAttribute("type", "text");
-        this.styleUtil.set(this.input, "input");
-        this.consoleContainer.appendChild(this.input);
-        this.input.onkeydown = (e) =>  {
-            this.inputHandler.updateInputText(e, this.input, this.completionHint);
-        };
+
+        this.input = this.createElement({tagName: "input", 
+            attributes: [{"id": "consoleInput"}, {"type": "text"}], 
+            classes: ["input"], parent: this.consoleContainer});
+        this.addInputHandler(this.handler);
     };
+
+    View.prototype.addInputHandler = function(handler) {
+        if (this.addedHandler) {
+            return;
+        }
+        if (!this.input) {
+            this.handler = handler || this.handler;
+            return;
+        }
+        this.addedHandler = true;
+         this.input.onkeydown = (e) =>  {
+            handler(e, this.input, this.completionHint);
+        };
+    }
     
     View.prototype.addCompletionHint = function() {
-        this.completionHint = document.createElement("div");
-        this.styleUtil.set(this.completionHint, "completionHint");
-        this.consoleContainer.appendChild(this.completionHint);
+        this.completionHint = this.createElement({tagName:"div", classes: ["completion-hint"], parent: this.consoleContainer});
     };
     
-
     View.prototype.setLocation = function(location) {
         QC.config.location = location;
         if (this.consoleContainer) {
-            this.styleUtil.setContainerStyle(this.consoleContainer);
+            this.consoleContainer.className = ["qc-container", location].join(" " + View.STYLE_PREFIX);
         }
     };
 
@@ -937,6 +985,7 @@ var QC;
     };
     
     View.prototype.toggleConsole = function() {
+        console.log("should toggle console");
         if (this.consoleContainer) {
             this.consoleContainer.remove();
             this.consoleContainer = undefined;
@@ -952,7 +1001,24 @@ var QC;
         }
         return this.consoleContainer.outerHTML;  
     };
+
+    View.prototype.createElement = function(elementConfig) {
+        var elem = document.createElement(elementConfig.tagName);
+        if (elementConfig.parent) {
+            elementConfig.parent.appendChild(elem);
+        }
+        if (elementConfig.classes) {
+            elem.className = View.STYLE_PREFIX + elementConfig.classes.join(" " + View.STYLE_PREFIX);
+        }
+        if (elementConfig.attributes) {
+            elementConfig.attributes.forEach((attr) => {
+                let key = Object.keys(attr)[0];
+                elem.setAttribute(key, attr[key]);
+            });
+        }
+        return elem;
+    };
     
-    QC.DI.register("view", View, ["execute", "inputHandler", "styleUtil"]);
+    QC.DI.register("view", View, ["styleUtil"]);
 
 })(QC || (QC = {}));
