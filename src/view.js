@@ -19,16 +19,16 @@ var QC;
         if (link) {
             return link;
         }
-        return this.createElement({tagName: "link", 
-                attributes: [{"id": "qc-styles"}, {"rel": "stylesheet"}], parent: document.head})
+        return this.createElement({tag: "link", parent: document.head, 
+                                    attrs: [{"id": "qc-styles"}, {"rel": "stylesheet"}]})
     };
 
     View.prototype.addToScreen = function() {
-        this.consoleContainer = this.createElement({tagName: "div", parent: document.body, 
+        this.consoleContainer = this.createElement({tag: "div", parent: document.body, 
                 classes: ["container", QC.config.location]});
 
-        this.consoleDiv = this.createElement({tagName: "textarea", parent: this.consoleContainer, 
-                    attributes: [{"readonly": ""}], classes: ["text-area"]});
+        this.consoleDiv = this.createElement({tag: "textarea", parent: this.consoleContainer, 
+                    attrs: [{"readonly": ""}], classes: ["text-area"]});
 
         this.addInput();
     };
@@ -36,8 +36,8 @@ var QC;
     View.prototype.addInput= function() {
         this.addCompletionHint();
 
-        this.input = this.createElement({tagName: "input", 
-            attributes: [{"id": "consoleInput"}, {"type": "text"}], 
+        this.input = this.createElement({tag: "input", 
+            attrs: [{"id": "consoleInput"}, {"type": "text"}], 
             classes: ["input"], parent: this.consoleContainer});
         this.addInputHandler(this.handler);
     };
@@ -57,7 +57,7 @@ var QC;
     }
     
     View.prototype.addCompletionHint = function() {
-        this.completionHint = this.createElement({tagName:"div", classes: ["completion-hint"], parent: this.consoleContainer});
+        this.completionHint = this.createElement({tag:"div", classes: ["completion-hint"], parent: this.consoleContainer});
     };
     
     View.prototype.setLocation = function(location) {
@@ -101,15 +101,15 @@ var QC;
     };
 
     View.prototype.createElement = function(elementConfig) {
-        var elem = document.createElement(elementConfig.tagName);
+        var elem = document.createElement(elementConfig.tag);
         if (elementConfig.parent) {
             elementConfig.parent.appendChild(elem);
         }
         if (elementConfig.classes) {
             elem.className = View.STYLE_PREFIX + elementConfig.classes.join(" " + View.STYLE_PREFIX);
         }
-        if (elementConfig.attributes) {
-            elementConfig.attributes.forEach((attr) => {
+        if (elementConfig.attrs) {
+            elementConfig.attrs.forEach((attr) => {
                 let key = Object.keys(attr)[0];
                 elem.setAttribute(key, attr[key]);
             });

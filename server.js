@@ -1,10 +1,20 @@
-var http = require("http");
-var fs = require("fs");
-var path = require("path");
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
 
-var port = 3200;
+const DEFAULT_PORT = 3000;
+var port = DEFAULT_PORT;
 
-var mimeTypes = {
+process.argv.forEach(function (val, index, array) {
+  // First two arguments will be node and this file path.
+  if (index > 1) {
+    console.log(index + ': ' + val);
+    port = val;
+  }
+
+});
+
+const mimeTypes = {
     ".js": "text/javascript",
     ".css": "text/css",
     ".json": "application/json",
@@ -31,7 +41,7 @@ http.createServer(function (request, response) {
             }
             else {
                 response.writeHead(500);
-                response.end("Sorry, check with the site admin for error: "+error.code+" ..\n");
+                response.end("Sorry, check with the site admin for error: " + error.code + " ..\n");
                 response.end(); 
             }
         }
@@ -42,4 +52,5 @@ http.createServer(function (request, response) {
     });
 
 }).listen(port);
+
 console.log(["Server running at http://127.0.0.1:", port, "/"].join(""));
